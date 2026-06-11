@@ -892,9 +892,13 @@ function openForm(num) {
         <input type="hidden" id="f_bombero" value="${bomberoNombre}">
       </div>
     </div>
-    ${firmaHTML}`;
+    \${firmaHTML}`;
 
-setTimeout(() => { if (document.getElementById('firmaCanvas')) initCanvas(); }, 100);
+  document.getElementById('overlay').classList.add('on');
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('btnSave').textContent = '💾 GUARDAR';
+  document.getElementById('btnSave').classList.remove('saving');
+  setTimeout(() => { if (document.getElementById('firmaCanvas')) initCanvas(); }, 100);
 }
 
 function selectFirmaBombero(nombre, sector) {}
