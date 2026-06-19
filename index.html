@@ -102,6 +102,7 @@ header{background:linear-gradient(135deg,var(--red-dark),#0a0608 70%);padding:14
 .tb.m.on{background:rgba(239,68,68,.2);border-color:var(--bad);color:var(--bad)}
 .tb.r.on{background:rgba(245,158,11,.2);border-color:var(--warn);color:var(--warn)}
 .tb.b.on{background:rgba(34,197,94,.2);border-color:var(--ok);color:var(--ok)}
+.tb.tipolanza.on{background:rgba(59,130,246,.2);border-color:var(--blue);color:var(--blue)}
 .finput{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:7px 10px;border-radius:8px;font-size:13px;font-family:'Barlow',sans-serif;outline:none;transition:border-color .2s}
 .finput:focus{border-color:var(--red)}
 .fselect{background:var(--surface2);border:1.5px solid var(--border);color:var(--text);padding:7px 10px;border-radius:8px;font-size:13px;font-family:'Barlow',sans-serif;outline:none;flex:1;cursor:pointer}
@@ -417,13 +418,14 @@ const BOMBEROS = ['Carla Figueroa','Miguel Zelenov','Alan Espíndola','Antonio P
 
 // ─── CAMPOS CON OBSERVACIÓN AL MARCAR NO ────────────────────────────────────
 const CAMPOS_OBS = {
+  manguera_estado:   '¿Detalle del estado de la manguera?',
   manguera_estibada: '¿Por qué no está bien estibada?',
   posee_lanza:       '¿Motivo por el que no posee lanza?',
-  lanza_apertura:    '¿Problema detectado en apertura?',
+  lanza_apertura:    '¿Qué impide la apertura completa?',
   llaves:            '¿Cuántas llaves hay / faltan?',
   vidrio:            '¿Estado del vidrio?',
   limpio:            '¿Tipo de suciedad o problema?',
-  obstruido:         '¿Qué obstruye el acceso?',
+  obstruido:         '¿Qué obstruye el acceso al hidrante?',
   senalizacion:      '¿Qué señalización falta?',
 };
 
@@ -674,15 +676,15 @@ function loadLocal() {
 const K = n => String(n);
 function checkIssues(r) {
   const p = [];
-  if (r.manguera_estado === 'M') p.push('Manguera mal estado');
-  if (r.manguera_estado === 'R') p.push('Manguera estado regular');
+  if (r.manguera_estado === 'MAL') p.push('Manguera mal estado');
+  if (r.manguera_estado === 'REGULAR') p.push('Manguera estado regular');
   if (r.manguera_estibada === 'NO') p.push('No bien estibada');
   if (r.posee_lanza === 'NO') p.push('No posee lanza');
   if (r.lanza_apertura === 'NO') p.push('Lanza no abre');
   if (r.llaves === 'NO') p.push('Faltan llaves');
   if (r.vidrio === 'NO') p.push('Vidrio en mal estado');
   if (r.limpio === 'NO') p.push('Sucio');
-  if (r.obstruido === 'SI') p.push('Obstruido');
+  if (r.obstruido === 'NO') p.push('No se encuentra libre');
   if (r.senalizacion === 'NO') p.push('Sin señalización');
   return p;
 }
@@ -774,8 +776,9 @@ function openForm(num) {
     <div class="panel-sub">${h.sector} · ${h.piso} · Ø${h.diam}mm · ${h.tipo_lanza}${h.venc_ph?' · Venc: '+fmtDate(h.venc_ph):''}</div></div>`;
 
   function tog(field, opts) {
+    const clsMap = {SI:'si', NO:'no', MAL:'m', REGULAR:'r', BIEN:'b'};
     return `<div class="tg">${opts.map(o => {
-      const cls = o.toLowerCase().replace(' ','');
+      const cls = clsMap[o] || (field === 'tipo_lanza_relevamiento' ? 'tipolanza' : o.toLowerCase().replace(/\s+/g,''));
       return `<button class="tb ${cls} ${formState[field]===o?'on':''}" data-field="${field}" data-val="${o}" onclick="setF('${field}','${o}',this,'${opts.join(',')}')">${o}</button>`;
     }).join('')}</div>`;
   }
@@ -783,7 +786,8 @@ function openForm(num) {
   // obs inline por campo
   function obsRow(field, label) {
     const val = formState[`obs_${field}`] || '';
-    const show = formState[field] === (field === 'obstruido' ? 'SI' : 'NO');
+    const isMRB = ['MAL','REGULAR','BIEN'].includes(formState[field]);
+    const show = isMRB ? (formState[field] === 'MAL' || formState[field] === 'REGULAR') : (formState[field] === 'NO');
     return `<div class="obs-inline ${show?'show':''}" id="obs_wrap_${field}">
       <label>📝 ${CAMPOS_OBS[field]||'Observación'}</label>
       <textarea id="obs_${field}" placeholder="Escribí aquí...">${val}</textarea>
@@ -832,7 +836,10 @@ function openForm(num) {
   document.getElementById('panelBody').innerHTML = `
     <div class="fsec">
       <div class="fsec-title">🚿 Manguera</div>
-      <div class="frow"><div class="flabel">Estado</div>${tog('manguera_estado',['M','R','B'])}</div>
+      <div class="frow wrap">
+        <div class="flabel">Estado</div>${tog('manguera_estado',['MAL','REGULAR','BIEN'])}
+        ${obsRow('manguera_estado','manguera_estado')}
+      </div>
       <div class="frow wrap">
         <div class="flabel">¿Bien estibada?</div>${tog('manguera_estibada',['SI','NO'])}
         ${obsRow('manguera_estibada','manguera_estibada')}
@@ -850,8 +857,11 @@ function openForm(num) {
         <div class="flabel">¿Posee lanza?</div>${tog('posee_lanza',['SI','NO'])}
         ${obsRow('posee_lanza','posee_lanza')}
       </div>
+      <div class="frow">
+        <div class="flabel">Tipo de lanza</div>${tog('tipo_lanza_relevamiento',['TGB','CHORRO PLENO'])}
+      </div>
       <div class="frow wrap">
-        <div class="flabel">Apertura de lanza</div>${tog('lanza_apertura',['SI','NO'])}
+        <div class="flabel">¿La lanza se encuentra abierta completamente?</div>${tog('lanza_apertura',['SI','NO'])}
         ${obsRow('lanza_apertura','lanza_apertura')}
       </div>
       <div class="frow wrap">
@@ -870,11 +880,11 @@ function openForm(num) {
         ${obsRow('limpio','limpio')}
       </div>
       <div class="frow wrap">
-        <div class="flabel">¿Obstruido?</div>${tog('obstruido',['SI','NO'])}
+        <div class="flabel">¿Se encuentra libre?</div>${tog('obstruido',['SI','NO'])}
         ${obsRow('obstruido','obstruido')}
       </div>
       <div class="frow wrap">
-        <div class="flabel">¿Bien señalizado?</div>${tog('senalizacion',['SI','NO'])}
+        <div class="flabel">¿Se encuentra señalizado?</div>${tog('senalizacion',['SI','NO'])}
         ${obsRow('senalizacion','senalizacion')}
       </div>
     </div>
@@ -910,8 +920,12 @@ function setF(field, val, btn, optsStr) {
   // mostrar/ocultar obs inline
   const wrap = document.getElementById('obs_wrap_' + field);
   if (wrap) {
-    const trigger = (field === 'obstruido') ? 'SI' : 'NO';
-    wrap.classList.toggle('show', val === trigger);
+    let show;
+    if (val === 'MAL' || val === 'REGULAR') show = true;       // estados de mal/regular
+    else if (val === 'BIEN' || val === 'SI') show = false;     // todo lo positivo, sin obs
+    else if (field === 'obstruido') show = (val === 'NO');     // "¿libre?" NO = no está libre = obstruido
+    else show = (val === 'NO');                                 // resto de los SI/NO
+    wrap.classList.toggle('show', show);
   }
 }
 
@@ -1124,17 +1138,17 @@ function exportCSV() {
   if(fil==='pendientes') hs=hs.filter(h=>!registros[K(h.num)]);
 
   const descarga = `${nowFmt()} · ${currentUser?currentUser.nombre+' ('+currentUser.id+')':'sin usuario'}`;
-  const rows=[['Fecha descarga','Usuario descarga','N°','Sector','Piso','Ubicación','Diámetro','Tipo Lanza','Venc. PH',
-    'Estado','Manguera','Bien Estibada','Obs. Estibada','Fecha PH','Posee Lanza','Obs. Lanza','Apertura Lanza','Obs. Apertura',
-    'Llaves','Obs. Llaves','Vidrio','Obs. Vidrio','Limpio','Obs. Limpio','Obstruido','Obs. Obstruido','Señalización','Obs. Señalización',
+  const rows=[['Fecha descarga','Usuario descarga','N°','Sector','Piso','Ubicación','Diámetro','Tipo Lanza (ficha)','Venc. PH',
+    'Estado','Manguera','Obs. Manguera','Bien Estibada','Obs. Estibada','Fecha PH','Posee Lanza','Obs. Lanza','Tipo de Lanza (relevamiento)','Apertura Lanza','Obs. Apertura',
+    'Llaves','Obs. Llaves','Vidrio','Obs. Vidrio','Limpio','Obs. Limpio','Se encuentra libre','Obs. Libre','Señalizado','Obs. Señalizado',
     'Fecha Control','Bombero Inspector','Problemas']];
   hs.forEach(h=>{
     const r=registros[K(h.num)]||{};
     rows.push([nowFmt(),currentUser?currentUser.nombre:'',
       h.num,h.sector,h.piso,h.ubicacion,h.diam,h.tipo_lanza,h.venc_ph,
       r.ts?'Inspeccionado':'Pendiente',
-      r.manguera_estado||'',r.manguera_estibada||'',r.obs_manguera_estibada||'',
-      r.fecha_ph?fmtDate(r.fecha_ph):'',r.posee_lanza||'',r.obs_posee_lanza||'',
+      r.manguera_estado||'',r.obs_manguera_estado||'',r.manguera_estibada||'',r.obs_manguera_estibada||'',
+      r.fecha_ph?fmtDate(r.fecha_ph):'',r.posee_lanza||'',r.obs_posee_lanza||'',r.tipo_lanza_relevamiento||'',
       r.lanza_apertura||'',r.obs_lanza_apertura||'',r.llaves||'',r.obs_llaves||'',
       r.vidrio||'',r.obs_vidrio||'',r.limpio||'',r.obs_limpio||'',
       r.obstruido||'',r.obs_obstruido||'',r.senalizacion||'',r.obs_senalizacion||'',
