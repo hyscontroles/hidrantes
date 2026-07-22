@@ -597,6 +597,8 @@ function loadFirmas() {
 const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzl7vC2B-9crCDC5lhwWfpdtGoSdF02GL05jJaaHVIZZLYgkle7AAm2vh2DwS1GWT60/exec';
 
 // ─── GOOGLE SHEETS — acceso directo sin código de sala ────────────────────
+const REINICIO_KEY = 'hidrantes_reinicio';
+
 async function sheetsGetAll() {
   try {
     const res = await fetch(SHEETS_URL + '?action=getAll', {
@@ -604,8 +606,38 @@ async function sheetsGetAll() {
       redirect: 'follow'
     });
     const data = await res.json();
+    if (data.reinicio !== undefined) aplicarReinicio(data.reinicio);
     return data.registros || null;
   } catch { return null; }
+}
+
+// Consulta sólo el contador de reinicio (rápido, sin traer registros)
+async function sheetsGetReinicio() {
+  try {
+    const res = await fetch(SHEETS_URL + '?action=estado', {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    const data = await res.json();
+    return (data.reinicio !== undefined) ? data.reinicio : null;
+  } catch { return null; }
+}
+
+// Si el contador del servidor es mayor al guardado, borra los datos
+// locales y deja la app en blanco. El usuario no hace nada.
+function aplicarReinicio(nroServidor) {
+  const local = parseInt(localStorage.getItem(REINICIO_KEY) || '0', 10);
+  if (nroServidor > local) {
+    registros = {};
+    firmas    = {};
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(FIRMAS_KEY);
+    localStorage.setItem(REINICIO_KEY, String(nroServidor));
+    renderList(); renderStatsBar();
+    return true;
+  }
+  localStorage.setItem(REINICIO_KEY, String(nroServidor));
+  return false;
 }
 
 async function sheetsSave(num, datos) {
@@ -1336,14 +1368,20 @@ function showToast(msg,type='ok'){
       selectUser(u.id);
       // Al reabrir la app, subir datos locales pendientes y bajar de Sheets
       setTimeout(async () => {
-        const localCount = Object.keys(registros).length;
-        if (localCount > 0) {
-          setSyncUI('syncing');
-          await sheetsSaveAll(registros);
-          await syncFromSheets();
-        } else {
-          await syncFromSheets();
+        setSyncUI('syncing');
+        // Primero: ¿hubo cierre de mes? Si sí, la app se limpia sola
+        // y NO sube los datos viejos a Sheets.
+        const nro = await sheetsGetReinicio();
+        const seReinicio = (nro !== null) ? aplicarReinicio(nro) : false;
+        if (seReinicio) {
+          setSyncUI('online', '🟢 Conectado');
+          showToast('🔄 Nuevo mes — relevamiento en blanco', 'info');
+          renderList(); renderStatsBar();
+          return;
         }
+        // Flujo normal: subir pendientes locales y bajar de Sheets
+        if (Object.keys(registros).length > 0) await sheetsSaveAll(registros);
+        await syncFromSheets();
       }, 1000);
     }
   }
